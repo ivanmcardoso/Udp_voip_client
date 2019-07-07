@@ -17,24 +17,24 @@
 #include <driver/adc.h>
 #include "driver/i2s.h"
 
-#define SSID 						"Katia Cardoso"
-#define PASSWORD					"jnc196809"
-#define HOST_IP_ADDR 				"10.0.0.101"
-#define PORT 						8000
-#define SAMPLE_RATE 				8000
-#define BUFFER_MAX  				8000
+#define SSID	"Katia Cardoso"
+#define PASSWORD	"jnc196809"
+#define HOST_IP_ADDR	"10.0.0.104"
+#define PORT	3333
+#define SAMPLE_RATE	8000
+#define BUFFER_MAX	8000
+#define LED_GOTIP	GPIO_NUM_2
 
 int16_t audioBuffer[BUFFER_MAX];
 int time_before = 0,
-	j = 0,
-	wifi_is_connected = 0;
+	bufferIndex = 0;
 
 static EventGroupHandle_t s_wifi_event_group;
 const int WIFI_CONNECTED_BIT = BIT0;
-/*
-static void send_all(int sock, const void *vbuf, size_t size_buf, struct sockaddr_in source_addr)
+
+static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in source_addr)
 {
-	const char *buf = (char*)vbuf;
+	void *buf = vbuf;
 	int send_size;
 	size_t size_left;
 	const int flags = 0;
@@ -42,7 +42,7 @@ static void send_all(int sock, const void *vbuf, size_t size_buf, struct sockadd
 
 	size_left = size_buf;
 
-	while(size_left > 0 )
+	while(1)
 	{
 		if((send_size = sendto(sock, buf,size_left,flags, (struct sockaddr *)&source_addr, socklen)) == -1)
 		{
@@ -51,19 +51,20 @@ static void send_all(int sock, const void *vbuf, size_t size_buf, struct sockadd
 		}
 		if(send_size == 0)
 		{
-			printf("envio completp\n");
+			printf("envio completo\n");
 			break;
 		}
 
 		size_left -= send_size;
 		buf +=send_size;
+		printf("port = %d size left = %d\n",PORT,send_size);
 	}
 	return;
 }
-*/
+
 static void udp_client_task(void *pvParameters)
 {
-	 char addr_str[128];
+	char addr_str[128];
     int addr_family;
     int ip_protocol;
 
@@ -78,20 +79,8 @@ static void udp_client_task(void *pvParameters)
 
         int sock = socket(addr_family, SOCK_DGRAM, ip_protocol);
 
-	//	send_all(sock,(void*)&audioBuffer, sizeof(audioBuffer), dest_addr);
-    	const int flags = 0;
+        send_all(sock,(void*)&audioBuffer, sizeof(audioBuffer), dest_addr);
 
-    	socklen_t socklen = sizeof(dest_addr);
-
-    	char* payload = "Juntos e shallow now";
-    	int len = sendto(sock,payload, strlen(payload),flags, (struct sockaddr *)&dest_addr, socklen);
-    	printf("Port: %d len = %d\n", (int)PORT, len);
-    	if(len == strlen(payload)){
-    		printf("enviado\n");
-    	}
-    	else if(len == -1){
-    		printf("erro ao enviar\n");
-    	}
 		shutdown(sock, 0);
         close(sock);
         vTaskDelete(NULL);
@@ -101,12 +90,11 @@ static void udp_client_task(void *pvParameters)
 static void periodic_timer_callback(void * arg)
 {
 	int readValue = adc1_get_raw(ADC1_CHANNEL_0);
-	audioBuffer[j] = readValue*1.5;
-	j++;
-	if(j>=BUFFER_MAX){
-		j = 0;
-		printf("Coletado\n");
-			//printf("time: %lld\n",(esp_timer_get_time()-time_before)/1000);
+	audioBuffer[bufferIndex] = readValue;
+	bufferIndex++;
+
+	if(bufferIndex>=BUFFER_MAX){
+		bufferIndex = 0;
 		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, NULL, 5, NULL,1);
 	}
 
@@ -124,6 +112,13 @@ static void create_timer(){
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, (1000000/SAMPLE_RATE)));
 }
 
+static void wifi_reconnect(){
+    do {
+    	xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+        vTaskDelay(300/portTICK_PERIOD_MS);
+    }while(esp_wifi_connect() != ESP_OK);
+}
+
 static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
     switch(event->event_id) {
@@ -134,26 +129,21 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         printf("conectado ao wifi\n");
         break;
     case SYSTEM_EVENT_STA_GOT_IP:
-    	gpio_set_level(GPIO_NUM_2, 1);
+    	gpio_set_level(LED_GOTIP, 1);
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         create_timer();
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
-        {
-        	gpio_set_level(GPIO_NUM_2, 0);
-            do {
-                xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-                vTaskDelay(300/portTICK_PERIOD_MS);
-            }while(esp_wifi_connect() != ESP_OK);
+        gpio_set_level(LED_GOTIP, 0);
+        wifi_reconnect();
+        break;
 
-            break;
-        }
     default:
         break;
     }
     return ESP_OK;
 }
-//configuração do wifi com station
+
 void setup_wifi()
 {
     s_wifi_event_group = xEventGroupCreate();
@@ -175,11 +165,11 @@ void setup_wifi()
     ESP_ERROR_CHECK(esp_wifi_start() );
 
 }
-//configuração dos pinos de entrada e de saída
+
 static void pins_Setup(){
 
-    gpio_pad_select_gpio(GPIO_NUM_2);
-	gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+    gpio_pad_select_gpio(LED_GOTIP);
+	gpio_set_direction(LED_GOTIP, GPIO_MODE_OUTPUT);
 
 	adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(ADC1_CHANNEL_0,ADC_ATTEN_DB_0);
