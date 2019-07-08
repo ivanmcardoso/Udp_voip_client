@@ -22,7 +22,7 @@
 #define HOST_IP_ADDR	"10.0.0.104"
 #define PORT	3333
 #define SAMPLE_RATE	8000
-#define BUFFER_MAX	8000
+#define BUFFER_MAX	500
 #define LED_GOTIP	GPIO_NUM_2
 
 int16_t audioBuffer[BUFFER_MAX];
@@ -34,7 +34,7 @@ const int WIFI_CONNECTED_BIT = BIT0;
 
 static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in source_addr)
 {
-	void *buf = vbuf;
+	const void *buf = vbuf;
 	int send_size;
 	size_t size_left;
 	const int flags = 0;
@@ -42,7 +42,7 @@ static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in 
 
 	size_left = size_buf;
 
-	while(1)
+	while(size_left > 0)
 	{
 		if((send_size = sendto(sock, buf,size_left,flags, (struct sockaddr *)&source_addr, socklen)) == -1)
 		{
