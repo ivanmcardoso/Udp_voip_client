@@ -19,10 +19,11 @@
 
 #define SSID	"Katia Cardoso"
 #define PASSWORD	"jnc196809"
-#define HOST_IP_ADDR	"10.0.0.104"
+#define HOST_IP_ADDR	"10.0.0.114"
+#define HOST_IP_ADDR1	"10.0.0.117"
 #define PORT	3333
 #define SAMPLE_RATE	8000
-#define BUFFER_MAX	500
+#define BUFFER_MAX	8000
 #define LED_GOTIP	GPIO_NUM_2
 
 int16_t audioBuffer[BUFFER_MAX];
@@ -34,17 +35,19 @@ const int WIFI_CONNECTED_BIT = BIT0;
 
 static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in source_addr)
 {
+
 	const void *buf = vbuf;
 	int send_size;
 	size_t size_left;
+	size_t size_maxsend = 1000;
 	const int flags = 0;
 	socklen_t socklen = sizeof(source_addr);
 
 	size_left = size_buf;
 
-	while(size_left > 0)
+	while(size_left>0)
 	{
-		if((send_size = sendto(sock, buf,size_left,flags, (struct sockaddr *)&source_addr, socklen)) == -1)
+		if((send_size = sendto(sock, buf,size_maxsend,flags, (struct sockaddr *)&source_addr, socklen)) == -1)
 		{
 			printf("Erro ao enviar\n");
 			break;
@@ -57,7 +60,7 @@ static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in 
 
 		size_left -= send_size;
 		buf +=send_size;
-		printf("port = %d size left = %d\n",PORT,send_size);
+		printf("port = %d size left = %d\n",PORT,size_left);
 	}
 	return;
 }
@@ -70,7 +73,7 @@ static void udp_client_task(void *pvParameters)
 
     while(1){
         struct sockaddr_in dest_addr;
-        dest_addr.sin_addr.s_addr = inet_addr(HOST_IP_ADDR);
+        dest_addr.sin_addr.s_addr = inet_addr(pvParameters);
         dest_addr.sin_family = AF_INET;
         dest_addr.sin_port = htons(PORT);
         addr_family = AF_INET;
@@ -95,7 +98,8 @@ static void periodic_timer_callback(void * arg)
 
 	if(bufferIndex>=BUFFER_MAX){
 		bufferIndex = 0;
-		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, NULL, 5, NULL,1);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR1, 5, NULL,0);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR, 5, NULL,1);
 	}
 
 }
