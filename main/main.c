@@ -17,13 +17,17 @@
 #include <driver/adc.h>
 #include "driver/i2s.h"
 
-#define SSID	"Katia Cardoso"
-#define PASSWORD	"jnc196809"
-#define HOST_IP_ADDR	"10.0.0.114"
-#define HOST_IP_ADDR1	"10.0.0.117"
+#define SSID	"ESP32"
+#define PASSWORD	"121235RA"
+//#define HOST_IP_ADDR	"10.0.0.114"
+#define HOST_IP_ADDR	"192.168.743.1"
+#define HOST_IP_ADDR1	"192.168.4.2"
+#define HOST_IP_ADDR2	"10.0.0.118"
+#define HOST_IP_ADDR3	"10.0.0.119"
+#define HOST_IP_ADDR4	"10.0.0.120"
 #define PORT	3333
 #define SAMPLE_RATE	8000
-#define BUFFER_MAX	8000
+#define BUFFER_MAX	500
 #define LED_GOTIP	GPIO_NUM_2
 
 int16_t audioBuffer[BUFFER_MAX];
@@ -45,7 +49,7 @@ static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in 
 
 	size_left = size_buf;
 
-	while(size_left>0)
+	while(1)
 	{
 		if((send_size = sendto(sock, buf,size_maxsend,flags, (struct sockaddr *)&source_addr, socklen)) == -1)
 		{
@@ -61,6 +65,7 @@ static void send_all(int sock,  void *vbuf, size_t size_buf, struct sockaddr_in 
 		size_left -= send_size;
 		buf +=send_size;
 		printf("port = %d size left = %d\n",PORT,size_left);
+		if(size_left <=0){ printf("tempo: %d\n",(int)(esp_timer_get_time()-time_before));break;}
 	}
 	return;
 }
@@ -98,8 +103,11 @@ static void periodic_timer_callback(void * arg)
 
 	if(bufferIndex>=BUFFER_MAX){
 		bufferIndex = 0;
-		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR1, 5, NULL,0);
-		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR, 5, NULL,1);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR4, 5, NULL,0);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR1, 5, NULL,1);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR2, 5, NULL,0);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR3, 5, NULL,1);
+		xTaskCreatePinnedToCore(udp_client_task, "udp_client", 4096, (void*)HOST_IP_ADDR, 5, NULL,0);
 	}
 
 }
